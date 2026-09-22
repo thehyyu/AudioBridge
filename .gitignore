@@ -1,0 +1,5 @@
+recordings/*
+!recordings/.gitkeep
+.run/
+.audiobridge.conf
+.DS_Store
