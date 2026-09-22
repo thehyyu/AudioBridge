@@ -10,6 +10,8 @@ PID_FILE="$RUN_DIR/record.pid"
 CURRENT_FILE="$RUN_DIR/current_file"
 CONFIG_FILE="$ROOT_DIR/.audiobridge.conf"
 LOG_FILE="$RUN_DIR/ffmpeg.log"
+PREV_OUTPUT_FILE="$RUN_DIR/prev_output"
+MULTI_OUTPUT_DEVICE_NAME="Multi-Output Device"
 
 mkdir -p "$RECORDINGS_DIR" "$RUN_DIR"
 
@@ -52,6 +54,39 @@ setup_device() {
   echo "已儲存設定到 $CONFIG_FILE"
 }
 
+switch_output_for_recording() {
+  if ! command -v SwitchAudioSource >/dev/null 2>&1; then
+    echo "提醒：找不到 SwitchAudioSource，請手動把系統輸出切到「${MULTI_OUTPUT_DEVICE_NAME}」" >&2
+    return
+  fi
+  local current
+  current="$(SwitchAudioSource -c -t output)"
+  if [[ "$current" == "$MULTI_OUTPUT_DEVICE_NAME" ]]; then
+    return
+  fi
+  echo "$current" > "$PREV_OUTPUT_FILE"
+  if SwitchAudioSource -s "$MULTI_OUTPUT_DEVICE_NAME" -t output 2>/dev/null; then
+    echo "系統輸出已切到「${MULTI_OUTPUT_DEVICE_NAME}」（錄音結束會自動切回「${current}」）"
+  else
+    echo "提醒：找不到「${MULTI_OUTPUT_DEVICE_NAME}」輸出裝置，請確認已在音訊 MIDI 設定建立，並手動切換系統輸出" >&2
+    rm -f "$PREV_OUTPUT_FILE"
+  fi
+}
+
+restore_output_after_recording() {
+  if [[ ! -f "$PREV_OUTPUT_FILE" ]]; then
+    return
+  fi
+  local prev
+  prev="$(cat "$PREV_OUTPUT_FILE")"
+  rm -f "$PREV_OUTPUT_FILE"
+  if command -v SwitchAudioSource >/dev/null 2>&1 && SwitchAudioSource -s "$prev" -t output 2>/dev/null; then
+    echo "系統輸出已切回「${prev}」"
+  else
+    echo "提醒：無法自動切回「${prev}」，請手動確認系統輸出" >&2
+  fi
+}
+
 load_device() {
   if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "尚未設定錄音裝置，請先執行: $(basename "$0") setup" >&2
@@ -83,10 +118,12 @@ start_recording() {
     m4a) codec_args=(-c:a aac -b:a 192k) ;;
     wav) codec_args=(-c:a pcm_s16le) ;;
     *)
-      echo "不支援的格式：$fmt（請用 wav 或 m4a）" >&2
+      echo "不支援的格式：${fmt}（請用 wav 或 m4a）" >&2
       exit 1
       ;;
   esac
+
+  switch_output_for_recording
 
   echo "開始錄音 -> $outfile"
   nohup ffmpeg -f avfoundation -i ":${AUDIO_DEVICE_INDEX}" -ac 2 -ar 44100 \
@@ -100,9 +137,10 @@ start_recording() {
   if ! kill -0 "$pid" 2>/dev/null; then
     echo "錄音啟動失敗，請檢查 $LOG_FILE" >&2
     rm -f "$PID_FILE" "$CURRENT_FILE"
+    restore_output_after_recording
     exit 1
   fi
-  echo "錄音中（PID $pid）。停止請執行: $(basename "$0") stop"
+  echo "錄音中（PID ${pid}）。停止請執行: $(basename "$0") stop"
 }
 
 stop_recording() {
@@ -116,6 +154,7 @@ stop_recording() {
   if ! kill -0 "$pid" 2>/dev/null; then
     echo "找不到錄音程序（可能已經結束），清除狀態檔"
     rm -f "$PID_FILE" "$CURRENT_FILE"
+    restore_output_after_recording
     exit 0
   fi
 
@@ -129,6 +168,7 @@ stop_recording() {
     kill -9 "$pid" 2>/dev/null || true
   fi
   rm -f "$PID_FILE"
+  restore_output_after_recording
 
   if [[ -f "$CURRENT_FILE" ]]; then
     echo "錄音已停止，檔案位置：$(cat "$CURRENT_FILE")"

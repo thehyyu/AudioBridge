@@ -20,6 +20,8 @@
 
 第一次使用請照 [SETUP.md](./SETUP.md) 做完：安裝 BlackHole、建立多重輸出裝置與聚集裝置、安裝 ffmpeg。
 
+設定做完之後，每次要錄音的操作流程看 [USAGE.md](./USAGE.md)。
+
 ## 使用方式
 
 ```bash
