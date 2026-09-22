@@ -6,19 +6,16 @@
 
 - ✅ BlackHole 2ch 已安裝並重開機生效
 - ✅ 多重輸出裝置已建立：**External Headphones + BlackHole 2ch**（讓你自己聽得到，同時把系統聲音送進 BlackHole）
-- ✅ 聚集裝置已建立：**MacBook Air Microphone + BlackHole 2ch**（把你的麥克風和對方的聲音合併成一路輸入）
+  - 注意：這裡勾的是 `External Headphones`，不是 `MacBook Air Speakers`。如果你用的是有線耳麥，macOS 會把耳麥的喇叭/麥克風視為跟內建喇叭/麥克風**不同的裝置**，勾錯會變成「系統聲音沒送到你耳朵裡」。
+- ✅ 聚集裝置已建立：**External Microphone + BlackHole 2ch**（把你的麥克風和對方的聲音合併成一路輸入）
+  - 同樣道理，勾的是 `External Microphone`（耳麥的線控麥克風），不是 `MacBook Air Microphone`。
 - ✅ `record.sh` 已設定好要用聚集裝置（`Aggregate Device`，索引 5）錄音
 - ✅ 已安裝 `switchaudio-osx`，`record.sh` 現在會自動切換系統輸出：
   - `start` 時自動切到「Multi-Output Device」
   - `stop` 時自動切回你原本用的輸出（例如耳機）
+- ✅ 錄音的聲道混音已修正：聚集裝置會給出 3 個原始聲道（BlackHole 左/右 + 麥克風單聲道），`record.sh` 用 `pan` filter 明確把三軌混成立體聲輸出，並加了 limiter 防止削頂爆音。已實測驗證系統音跟自己的聲音都能同時錄到、沒有失真。
 
 也就是說：**平常不用管音訊輸出切換，也不用管音量鍵會不會卡住**，這些 `record.sh` 都會自動處理。
-
-## 待確認事項（尚未驗證完成）
-
-- ⚠️ 上一次測錄的檔案是**完全靜音**（兩個聲道都是 -91 dB，等於數位零），懷疑是終端機 App 沒有麥克風權限。
-  - 檢查方式：**系統設定 → 隱私權與安全性 → 麥克風**，確認你執行 `record.sh` 的那個終端機 App（Terminal / iTerm2 等）有打勾。
-  - 如果沒有在清單裡，錄一次音通常會自動跳出授權請求；如果已經在清單但沒勾，手動勾選後**需要重開終端機視窗**才會生效。
 
 ## 日常錄音流程
 
@@ -65,7 +62,17 @@ cd /Users/hubertyu/Documents/AudioBridge
    ```
    如果 `mean_volume` / `max_volume` 都是 -91 dB 左右，代表完全沒收到聲音（權限或裝置選錯）；有正常起伏的數字（例如 -20 ~ -40 dB）就是正常收到聲音。
 3. 確認 `./scripts/record.sh setup` 選的是「Aggregate Device」（不是單獨的 BlackHole 或單獨的麥克風）。
-4. 確認 Audio MIDI 設定裡，聚集裝置的兩個子裝置（BlackHole 2ch、MacBook Air Microphone）都還在勾選狀態（重開機、拔插裝置後有時候會被系統重置）。
+4. 確認 Audio MIDI 設定裡，聚集裝置的兩個子裝置（BlackHole 2ch、你實際在用的麥克風，例如 External Microphone）都還在勾選狀態（重開機、拔插裝置後有時候會被系統重置）。
+
+## 如果錄出來有爆音/斷斷續續
+
+`max_volume` 如果接近或等於 0.0 dB，代表訊號削頂（clipping）失真，聽起來會像斷斷續續或雜音：
+
+```bash
+ffmpeg -i recordings/檔名.wav -af volumedetect -f null - 2>&1 | grep volume
+```
+
+`scripts/record.sh` 裡混音的增益係數（`0.5*c0+0.7*c2` 那段）已經加了 limiter 防削頂，正常不會再發生；如果之後又出現，可以把係數再調低一點。
 
 ## 如果換了耳機（有線 → 藍牙，或反過來）
 
