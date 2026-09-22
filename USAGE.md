@@ -14,6 +14,8 @@
   - `start` 時自動切到「Multi-Output Device」
   - `stop` 時自動切回你原本用的輸出（例如耳機）
 - ✅ 錄音的聲道混音已修正：聚集裝置會給出 3 個原始聲道（BlackHole 左/右 + 麥克風單聲道），`record.sh` 用 `pan` filter 明確把三軌混成立體聲輸出，並加了 limiter 防止削頂爆音。已實測驗證系統音跟自己的聲音都能同時錄到、沒有失真。
+- ✅ 螢幕錄影功能已加上並實測成功：`record.sh screen start/stop` 會把畫面（`Capture screen 0`）+ 系統音 + 麥克風一起錄成 mp4（h264_videotoolbox 硬體編碼），跟純音訊錄音共用同一套聲道混音、同一套輸出裝置自動切換邏輯，但用各自獨立的狀態檔，兩者可以想錄哪個就錄哪個。
+  - 第一次用需要在**系統設定 → 隱私權與安全性 → 螢幕錄製**授權終端機 App，剛授權要重開終端機視窗才會生效（跟麥克風權限是分開兩件事）。
 
 也就是說：**平常不用管音訊輸出切換，也不用管音量鍵會不會卡住**，這些 `record.sh` 都會自動處理。
 
@@ -52,6 +54,21 @@ cd /Users/hubertyu/Documents/AudioBridge
 ```
 
 錄音檔會存在 `recordings/`，檔名是時間戳記，例如 `recordings/2026-09-22_14-30-05.m4a`。
+
+## 螢幕錄影流程（畫面 + 系統音 + 麥克風）
+
+跟純音訊錄音是分開的指令、分開的狀態，兩者互不影響：
+
+```bash
+./scripts/record.sh screen start    # 開始錄螢幕
+./scripts/record.sh screen stop     # 停止，印出 mp4 檔案路徑
+./scripts/record.sh screen status   # 看現在有沒有在錄螢幕
+./scripts/record.sh screen list     # 列出所有視訊/螢幕擷取裝置（除錯用）
+```
+
+輸出檔在 `recordings/`，檔名例如 `recordings/2026-09-22_14-30-05_screen.mp4`。
+
+**如果 `screen start` 之後整個卡住、log（`.run/screen_ffmpeg.log`）停在裝置設定訊息後就沒動靜、沒有出現 `Output #0 ...` / `Press [q] to stop`**：這是螢幕錄製權限沒給終端機 App 的典型症狀（不會直接報錯，而是卡住等畫面授權）。到系統設定 → 隱私權與安全性 → 螢幕錄製確認終端機 App 已勾選；剛授權的話要完全重開終端機視窗才會生效。
 
 ## 如果錄出來沒聲音
 
