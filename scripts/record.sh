@@ -126,8 +126,12 @@ start_recording() {
   switch_output_for_recording
 
   echo "開始錄音 -> $outfile"
-  nohup ffmpeg -f avfoundation -i ":${AUDIO_DEVICE_INDEX}" -ac 2 -ar 44100 \
-    "${codec_args[@]}" "$outfile" >"$LOG_FILE" 2>&1 &
+  # 聚集裝置給出的是 3 個原始聲道（BlackHole 左/右 + 麥克風單聲道），
+  # 用 -ac 2 讓 ffmpeg 自動猜聲道配置會把麥克風那軌當成環繞聲道丟掉，
+  # 所以這裡用 pan 明確把系統聲音（c0/c1）跟麥克風（c2）混進左右聲道。
+  nohup ffmpeg -f avfoundation -i ":${AUDIO_DEVICE_INDEX}" \
+    -filter_complex "[0:a]pan=stereo|c0=0.5*c0+0.7*c2|c1=0.5*c1+0.7*c2,alimiter=limit=0.9[aout]" \
+    -map "[aout]" -ar 44100 "${codec_args[@]}" "$outfile" >"$LOG_FILE" 2>&1 &
   local pid=$!
   disown
   echo "$pid" > "$PID_FILE"
