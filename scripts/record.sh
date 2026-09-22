@@ -190,7 +190,7 @@ start_recording() {
   # 聚集裝置給出的是 3 個原始聲道（BlackHole 左/右 + 麥克風單聲道），
   # 用 -ac 2 讓 ffmpeg 自動猜聲道配置會把麥克風那軌當成環繞聲道丟掉，
   # 所以這裡用 pan 明確把系統聲音（c0/c1）跟麥克風（c2）混進左右聲道。
-  nohup ffmpeg -f avfoundation -i ":${AUDIO_DEVICE_INDEX}" \
+  nohup ffmpeg -f avfoundation -thread_queue_size 4096 -i ":${AUDIO_DEVICE_INDEX}" \
     -filter_complex "[0:a]pan=stereo|c0=0.5*c0+0.7*c2|c1=0.5*c1+0.7*c2,alimiter=limit=0.9[aout]" \
     -map "[aout]" -ar 44100 "${codec_args[@]}" "$outfile" >"$LOG_FILE" 2>&1 &
   local pid=$!
@@ -269,7 +269,7 @@ start_screen_recording() {
   echo "開始錄螢幕 -> $outfile"
   # 同一套聲道混音邏輯（見 start_recording 註解），另外用 videotoolbox
   # 硬體編碼成 H.264/mp4，檔案比 QuickTime 預設輸出小很多。
-  nohup ffmpeg -f avfoundation -framerate 30 -i "${VIDEO_DEVICE_INDEX}:${AUDIO_DEVICE_INDEX}" \
+  nohup ffmpeg -f avfoundation -thread_queue_size 4096 -framerate 30 -i "${VIDEO_DEVICE_INDEX}:${AUDIO_DEVICE_INDEX}" \
     -filter_complex "[0:a]pan=stereo|c0=0.5*c0+0.7*c2|c1=0.5*c1+0.7*c2,alimiter=limit=0.9[aout]" \
     -map 0:v -map "[aout]" \
     -c:v h264_videotoolbox -b:v 6M -pix_fmt yuv420p \
